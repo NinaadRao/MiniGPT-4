@@ -5,7 +5,6 @@ import random
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-import gradio as gr
 
 from minigpt4.common.config import Config
 from minigpt4.common.dist_utils import get_rank
@@ -19,6 +18,8 @@ from minigpt4.processors import *
 from minigpt4.runners import *
 from minigpt4.tasks import *
 import  json
+from tqdm import tqdm
+
 
 
 def parse_args():
@@ -79,28 +80,36 @@ print('Initialization Finished')
 #gradio_reset
 
 #upload the image
-with open('CLEVR_val_questions.json','r') as fp:
+with open('/workspace/CLEVR-dataset/questions/CLEVR_val_questions.json','r') as fp:
     df = json.load(fp)
 generated_answers = []
 
-file_name = 'val_output_minigpt.csv'
+file_name = 'val_output_minigpt.tsv'
 
 with open(file_name,'w') as fp:
-    fp.write('Image Name', "Question",'Actual Answer','Generated Answer')
-
-for i in range(len(df['questions'])):
+    fp.write("question\timage_filename\tground_truth_ans\tquestion_type\tpredicted_ans\tcorrect\tquestion_family_index\n")
+chat_state = CONV_VISION.copy()
+for i in tqdm(range(len(df['questions']))):
     question = df['questions'][i]['question']
     answer = df['questions'][i]['answer']
     image = df['questions'][i]['image_filename']
+    question_family_index = str(df['questions'][i]['question_family_index'])
+    correct = 'yes'
+    question_type = []
+    for j in df['questions'][i]['program']:
+        question_type.append(j['function'])
+    question_type = ','.join(question_type)
+    
+    
+    
 
 
-    chat_state = CONV_VISION.copy()
+    
     img_list = []
-    llm_message = chat.upload_img('images/val/'+image, chat_state, img_list)
+    llm_message = chat.upload_img('/workspace/CLEVR-dataset/images/val/'+image, chat_state, img_list)
 
     #ask
 
-    question 'abcdef'
     chat.ask(question, chat_state)
 
     #answer
@@ -110,15 +119,17 @@ for i in range(len(df['questions'])):
                                   num_beams=1,
                                   temperature=1,
                                   max_new_tokens=300,
-                                  max_length=2000)[0]
+                                  max_length=1500)[0]
     chat_state.messages = []
-    generated_answers.append(','.join(image,question,answer,llm_message[0]))
+    generated_answers.append('\t'.join([question,image,answer,question_type,llm_message[0],'yes',question_family_index]))
 
 
     # append results to output file
-    if len(generated_answers)%100==0:
+    if len(generated_answers)%10==0:
         with open(file_name,'a') as fp:
             fp.write('\n'.join(generated_answers))
+            fp.write('\n')
             generated_answers = []
+            break
 
 
